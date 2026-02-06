@@ -1,0 +1,16 @@
+# Binaries
+telegram-vacancy-parser
+
+# Environment variables
+.env
+
+# Session files (gotd/td often uses json or other formats for session storage)
+session.json
+*.session
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs
+*.log
