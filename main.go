@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"time"
 
 	"telegram-vacancy-parser/parser"
+	"telegram-vacancy-parser/storage"
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
@@ -46,14 +48,17 @@ func main() {
 		auth.SendCodeOptions{},
 	)
 
+	// Initialize storage
+	store := storage.NewFileStorage("vacancies.json")
+
 	// Dispatcher handles incoming updates
 	dispatcher := tg.NewUpdateDispatcher()
 	dispatcher.OnNewMessage(func(ctx context.Context, e tg.Entities, update *tg.UpdateNewMessage) error {
-		handleMessage(update.Message)
+		handleMessage(update.Message, store)
 		return nil
 	})
 	dispatcher.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, update *tg.UpdateNewChannelMessage) error {
-		handleMessage(update.Message)
+		handleMessage(update.Message, store)
 		return nil
 	})
 
@@ -83,12 +88,36 @@ func main() {
 	}
 }
 
-func handleMessage(msgClass tg.MessageClass) {
+func handleMessage(msgClass tg.MessageClass, store *storage.FileStorage) {
 	switch m := msgClass.(type) {
 	case *tg.Message:
 		if parser.IsVacancy(m.Message) {
-			log.Printf("[VACANCY FOUND] ChatID: %d | Content: %s\n", m.PeerID, m.Message)
-			// TODO: Save to file or database
+
+			peerID := getPeerID(m.PeerID)
+			log.Printf("[VACANCY FOUND] ChatID: %d | Content: %s\n", peerID, m.Message)
+
+			v := storage.Vacancy{
+				ChatID:    peerID,
+				MessageID: m.ID,
+				Text:      m.Message,
+				FoundAt:   time.Now(),
+			}
+
+			if err := store.Save(v); err != nil {
+				log.Printf("Failed to save vacancy: %v\n", err)
+			}
 		}
 	}
+}
+
+func getPeerID(peer tg.PeerClass) int64 {
+	switch p := peer.(type) {
+	case *tg.PeerUser:
+		return p.UserID
+	case *tg.PeerChat:
+		return p.ChatID
+	case *tg.PeerChannel:
+		return p.ChannelID
+	}
+	return 0
 }
